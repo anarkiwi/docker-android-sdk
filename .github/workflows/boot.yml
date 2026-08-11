@@ -38,7 +38,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: sync sdk
-        run: bin/android-sdk sdkmanager --version
+        run: bin/android-sdk android --no-metrics sdk list
 
       - name: create avd
         run: |

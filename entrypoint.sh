@@ -38,11 +38,17 @@ if [ "${ANDROID_SDK_SYNC}" != "0" ]; then
     want="$(sha256sum "${ANDROID_PACKAGES_FILE}" | cut -d' ' -f1)"
     if [ "${want}" != "$(cat "${marker}" 2>/dev/null || true)" ]; then
         packages="$(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "${ANDROID_PACKAGES_FILE}")"
-        yes | sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --licenses >/dev/null
         # shellcheck disable=SC2086
-        sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" ${packages}
+        android --no-metrics --sdk "${ANDROID_SDK_ROOT}" sdk install ${packages}
         printf '%s\n' "${want}" >"${marker}"
     fi
+fi
+
+# The emulator injects $HOME/.android/adbkey.pub into the guest as it boots. A
+# key generated later - by the first adb invocation - is one the guest has
+# never seen, and the device stays "unauthorized" for the life of that boot.
+if [ ! -f "${HOME}/.android/adbkey" ] && command -v adb >/dev/null 2>&1; then
+    adb keygen "${HOME}/.android/adbkey" >/dev/null 2>&1 || true
 fi
 
 exec "$@"
