@@ -1,0 +1,75 @@
+#!/bin/bash
+# Run an Android SDK tool (emulator, adb, sdkmanager, avdmanager, ...) in the
+# container, against the SDK and AVDs in $HOME. With no arguments, lists AVDs.
+#
+#   android-sdk emulator -avd virtual7
+#   android-sdk adb devices
+#   android-sdk avdmanager list avd
+#
+# $HOME is bind mounted at the same path and the container runs as the calling
+# uid/gid, so tools see exactly the paths and ownership they would on the host.
+set -eu
+
+image="${ANDROID_SDK_IMAGE:-anarkiwi/android-sdk:latest}"
+
+# The emulator needs KVM. Load it only if it is absent, and unload on exit:
+# VirtualBox cannot share VMX root with KVM.
+if [[ ! -e /dev/kvm && "${1:-}" == emulator ]]; then
+    if grep -q '^flags.* vmx' /proc/cpuinfo; then
+        module=kvm_intel
+    else
+        module=kvm_amd
+    fi
+    sudo modprobe "${module}"
+    # shellcheck disable=SC2064
+    trap "sudo modprobe -r ${module} kvm 2>/dev/null || true" EXIT
+fi
+
+docker_args=(
+    --rm --init
+    --network host
+    --ipc host
+    --user "$(id -u):$(id -g)"
+    -e HOME
+    -v "${HOME}:${HOME}"
+    -v /etc/passwd:/etc/passwd:ro
+    -v /etc/group:/etc/group:ro
+)
+
+if [[ -t 0 && -t 1 ]]; then
+    docker_args+=(-it)
+fi
+
+if [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
+    docker_args+=(-e ANDROID_SDK_ROOT)
+fi
+
+for group in kvm render video audio; do
+    gid="$(getent group "${group}" | cut -d: -f3)"
+    if [[ -n "${gid}" ]]; then
+        docker_args+=(--group-add "${gid}")
+    fi
+done
+
+for device in /dev/kvm /dev/dri; do
+    if [[ -e "${device}" ]]; then
+        docker_args+=(--device "${device}")
+    fi
+done
+
+if [[ -n "${DISPLAY:-}" ]]; then
+    xhost "+si:localuser:$(id -un)" >/dev/null
+    docker_args+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix)
+fi
+
+pulse="${XDG_RUNTIME_DIR:-}/pulse/native"
+if [[ -S "${pulse}" ]]; then
+    docker_args+=(-e "PULSE_SERVER=unix:${pulse}" -v "${pulse}:${pulse}")
+fi
+
+if [[ -n "${ANDROID_SDK_DOCKER_ARGS:-}" ]]; then
+    # shellcheck disable=SC2206
+    docker_args+=(${ANDROID_SDK_DOCKER_ARGS})
+fi
+
+exec docker run "${docker_args[@]}" "${image}" "$@"
