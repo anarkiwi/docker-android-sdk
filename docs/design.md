@@ -17,6 +17,21 @@ entrypoint into the bind mounted SDK directory.
 installs the current stable channel build. Pinning those exactly would mean
 fetching the zips directly, which is not worth the maintenance.
 
+## cmdline-tools is mirrored, not installed
+
+`sdkmanager` and `avdmanager` locate the SDK from their own install path and
+ignore `$ANDROID_SDK_ROOT`; run from outside a `<sdk>/cmdline-tools/latest`
+layout they fail with "Could not determine SDK root", and `avdmanager` then
+reports every system image path as invalid. `sdkmanager` also silently skips
+`cmdline-tools;latest` in a package list, because that is the package it is
+itself running from.
+
+So the entrypoint copies the image's `cmdline-tools` into
+`$ANDROID_SDK_ROOT/cmdline-tools/latest`, refreshing it whenever the image's
+`source.properties` differs. Every tool then resolves the root unaided,
+including on the host outside the container. The image is the source of truth
+for that package; `sdkmanager` owns the rest.
+
 ## No baked-in user
 
 The image creates no user and sets no `HOME`. `bin/android-sdk` passes
@@ -48,6 +63,19 @@ so the module must be loaded on the host first — it cannot move into the image
 
 `--group-add` for `kvm`, `render`, `video` and `audio` plus explicit `--device`
 flags replace the `--privileged` that GUI container wrappers often use.
+
+The wrapper does not `exec docker run` when it loaded the module: `exec`
+replaces the shell and takes the `EXIT` trap with it, which is the failure the
+trap exists to prevent.
+
+## XDG_RUNTIME_DIR
+
+The emulator registers each running instance under `$XDG_RUNTIME_DIR`, and
+PulseAudio's socket lives there, so the wrapper mounts the caller's runtime
+directory whole rather than cherry-picking the audio socket. Without it the
+emulator falls back to `/run/user/<uid>`, which does not exist in the
+container, and aborts before the guest starts. When the caller has no runtime
+directory (CI, cron) the entrypoint falls back to `$HOME/.android/run`.
 
 ## Networking
 

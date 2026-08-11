@@ -14,6 +14,7 @@ image="${ANDROID_SDK_IMAGE:-anarkiwi/android-sdk:latest}"
 
 # The emulator needs KVM. Load it only if it is absent, and unload on exit:
 # VirtualBox cannot share VMX root with KVM.
+module=
 if [[ ! -e /dev/kvm && "${1:-}" == emulator ]]; then
     if grep -q '^flags.* vmx' /proc/cpuinfo; then
         module=kvm_intel
@@ -62,9 +63,11 @@ if [[ -n "${DISPLAY:-}" ]]; then
     docker_args+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix)
 fi
 
-pulse="${XDG_RUNTIME_DIR:-}/pulse/native"
-if [[ -S "${pulse}" ]]; then
-    docker_args+=(-e "PULSE_SERVER=unix:${pulse}" -v "${pulse}:${pulse}")
+# The emulator registers itself under $XDG_RUNTIME_DIR, and PulseAudio's
+# socket lives there too. Mounting it whole covers both, and keeps a
+# containerised emulator discoverable exactly as a host one would be.
+if [[ -d "${XDG_RUNTIME_DIR:-}" ]]; then
+    docker_args+=(-e XDG_RUNTIME_DIR -v "${XDG_RUNTIME_DIR}:${XDG_RUNTIME_DIR}")
 fi
 
 if [[ -n "${ANDROID_SDK_DOCKER_ARGS:-}" ]]; then
@@ -72,4 +75,9 @@ if [[ -n "${ANDROID_SDK_DOCKER_ARGS:-}" ]]; then
     docker_args+=(${ANDROID_SDK_DOCKER_ARGS})
 fi
 
-exec docker run "${docker_args[@]}" "${image}" "$@"
+if [[ -n "${module}" ]]; then
+    # Not exec: exec would discard the trap that unloads the module.
+    docker run "${docker_args[@]}" "${image}" "$@"
+else
+    exec docker run "${docker_args[@]}" "${image}" "$@"
+fi

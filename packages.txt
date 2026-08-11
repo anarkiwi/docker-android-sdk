@@ -1,7 +1,6 @@
 # sdkmanager packages installed into $ANDROID_SDK_ROOT on first run, and
 # whenever this file changes. platform-tools and emulator have no version
 # selector - sdkmanager always installs the current stable channel build.
-cmdline-tools;latest
 platform-tools
 emulator
 platforms;android-34

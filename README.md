@@ -9,8 +9,9 @@ AVDs in `$HOME` on the host.
 bin/android-sdk                             # list AVDs
 bin/android-sdk emulator -avd virtual7      # run an AVD
 bin/android-sdk adb devices
-bin/android-sdk avdmanager list device
+bin/android-sdk avdmanager list target
 bin/android-sdk sdkmanager --list_installed
+bin/wait-for-boot                           # block until a booting AVD is up
 ```
 
 The first run installs the packages in [packages.txt](packages.txt) into

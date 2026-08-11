@@ -46,7 +46,6 @@ jobs:
         run: |
           bin/android-sdk emulator -avd ci -no-window -no-audio -no-boot-anim \
             -no-snapshot -gpu swiftshader_indirect -accel on &
-          timeout 900 bin/android-sdk adb wait-for-device shell \
-            'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
+          bin/wait-for-boot
           bin/android-sdk adb shell getprop ro.build.version.sdk
           bin/android-sdk adb emu kill

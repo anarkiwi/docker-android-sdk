@@ -11,7 +11,7 @@ jobs:
       - name: hadolint
         run: docker run --rm -i hadolint/hadolint < Dockerfile
       - name: shellcheck
-        run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable bin/android-sdk entrypoint.sh
+        run: docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable bin/android-sdk bin/wait-for-boot entrypoint.sh
 
   build:
     runs-on: ubuntu-latest
