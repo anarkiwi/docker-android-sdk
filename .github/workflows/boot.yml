@@ -13,6 +13,10 @@ jobs:
   boot:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # The runner presets this to a root owned /usr/local path holding its own
+      # preinstalled SDK. Converge a scratch one instead.
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/sdk
     steps:
       - uses: actions/checkout@v5
 
