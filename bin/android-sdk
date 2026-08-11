@@ -26,6 +26,10 @@ if [[ ! -e /dev/kvm && "${1:-}" == emulator ]]; then
     trap "sudo modprobe -r ${module} kvm 2>/dev/null || true" EXIT
 fi
 
+# Docker would create a missing mount point as root, leaving the container
+# unable to write its own home.
+mkdir -p "${HOME}"
+
 docker_args=(
     --rm --init
     --network host
@@ -41,9 +45,21 @@ if [[ -t 0 && -t 1 ]]; then
     docker_args+=(-it)
 fi
 
+# An SDK root outside $HOME needs its own mount, or the container would
+# converge a copy that vanishes with it.
 if [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
+    mkdir -p "${ANDROID_SDK_ROOT}"
     docker_args+=(-e ANDROID_SDK_ROOT)
+    if [[ "${ANDROID_SDK_ROOT}" != "${HOME}/"* ]]; then
+        docker_args+=(-v "${ANDROID_SDK_ROOT}:${ANDROID_SDK_ROOT}")
+    fi
 fi
+
+for var in ANDROID_SDK_SYNC ANDROID_PACKAGES_FILE; do
+    if [[ -n "${!var:-}" ]]; then
+        docker_args+=(-e "${var}")
+    fi
+done
 
 for group in kvm render video audio; do
     gid="$(getent group "${group}" | cut -d: -f3)"
