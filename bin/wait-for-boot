@@ -1,0 +1,25 @@
+#!/bin/bash
+# Wait until a running emulator's guest reports boot completion.
+#
+# Each android-sdk invocation is a separate container, so start the adb server
+# explicitly first: several containers racing to start it produce transient
+# protocol faults.
+set -eu
+
+here="$(dirname "$(readlink -f "$0")")"
+deadline=$((SECONDS + ${BOOT_TIMEOUT:-900}))
+
+"${here}/android-sdk" adb start-server
+
+while ((SECONDS < deadline)); do
+    booted="$("${here}/android-sdk" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n' || true)"
+    if [[ "${booted}" == 1 ]]; then
+        echo "boot completed"
+        exit 0
+    fi
+    sleep 10
+done
+
+echo "timed out after ${BOOT_TIMEOUT:-900}s waiting for boot" >&2
+"${here}/android-sdk" adb devices >&2 || true
+exit 1
