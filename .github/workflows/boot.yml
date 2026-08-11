@@ -18,7 +18,7 @@ jobs:
       # preinstalled SDK. Converge a scratch one instead.
       ANDROID_SDK_ROOT: ${{ github.workspace }}/sdk
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: enable kvm
         run: |
