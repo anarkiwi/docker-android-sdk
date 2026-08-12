@@ -67,11 +67,20 @@ if [ ! -f "${HOME}/.android/adbkey" ] && command -v adb >/dev/null 2>&1; then
     adb keygen "${HOME}/.android/adbkey" >/dev/null 2>&1 || true
 fi
 
-# The emulator wipes an AVD's data partition, silently and without prompting,
-# when the installed system image's build differs from the one the AVD was
-# provisioned against. It records that build in the AVD's version_num.cache.
-# Refuse the launch instead; ANDROID_ALLOW_IMAGE_CHANGE=1 accepts the wipe.
-if [ "$1" = "emulator" ] && [ "${ANDROID_ALLOW_IMAGE_CHANGE:-0}" != "1" ]; then
+# True while any emulator holds a console port. The container shares the host
+# network, so this sees every instance, however it was started - unlike a pid,
+# which is meaningless across pid namespaces.
+emulator_running() {
+    [ -r /proc/net/tcp ] || return 0
+    while read -r _ local_addr _ state _rest; do
+        [ "${state}" = "0A" ] || continue
+        port="$(printf '%d' "0x${local_addr#*:}" 2>/dev/null)" || continue
+        [ "${port}" -ge 5554 ] && [ "${port}" -le 5584 ] && return 0
+    done </proc/net/tcp
+    return 1
+}
+
+if [ "$1" = "emulator" ]; then
     avd=
     prev=
     for arg in "$@"; do
@@ -82,14 +91,20 @@ if [ "$1" = "emulator" ] && [ "${ANDROID_ALLOW_IMAGE_CHANGE:-0}" != "1" ]; then
 
     avd_home="${ANDROID_AVD_HOME:-${HOME}/.android/avd}"
     avd_dir="$(sed -n 's/^path=//p' "${avd_home}/${avd:-.}.ini" 2>/dev/null)"
-    provisioned="$(cat "${avd_dir}/version_num.cache" 2>/dev/null || true)"
-    sysdir="$(sed -n 's/^image.sysdir.1=//p' "${avd_dir}/config.ini" 2>/dev/null || true)"
-    installed_build="$(sed -n 's/^ro.build.version.incremental=//p' \
-        "${ANDROID_SDK_ROOT}/${sysdir}build.prop" 2>/dev/null || true)"
 
-    if [ -n "${provisioned}" ] && [ -n "${installed_build}" ] &&
-       [ "${provisioned}" != "${installed_build}" ]; then
-        cat >&2 <<MSG
+    # The emulator wipes an AVD's data partition, silently and without
+    # prompting, when the installed system image's build differs from the one
+    # the AVD was provisioned against. It records that build in the AVD's
+    # version_num.cache. Refuse instead; the override accepts the wipe.
+    if [ "${ANDROID_ALLOW_IMAGE_CHANGE:-0}" != "1" ]; then
+        provisioned="$(cat "${avd_dir}/version_num.cache" 2>/dev/null || true)"
+        sysdir="$(sed -n 's/^image.sysdir.1=//p' "${avd_dir}/config.ini" 2>/dev/null || true)"
+        installed_build="$(sed -n 's/^ro.build.version.incremental=//p' \
+            "${ANDROID_SDK_ROOT}/${sysdir}build.prop" 2>/dev/null || true)"
+
+        if [ -n "${provisioned}" ] && [ -n "${installed_build}" ] &&
+           [ "${provisioned}" != "${installed_build}" ]; then
+            cat >&2 <<MSG
 refusing to launch ${avd}: its system image has changed
 
   provisioned against build ${provisioned}
@@ -100,8 +115,23 @@ Booting would wipe this AVD's data partition, without warning. Install the
 build it expects, point ANDROID_SDK_ROOT at an SDK that has it, or set
 ANDROID_ALLOW_IMAGE_CHANGE=1 to accept losing the data.
 MSG
-        exit 1
+            exit 1
+        fi
     fi
+
+    # An emulator killed by a signal leaves its lock files behind, and the next
+    # launch fails with "Running multiple emulators with the same AVD" - the
+    # lock cannot tell an orphan from a live instance. Clear them when nothing
+    # is actually running.
+    if [ -n "${avd_dir}" ] && ! emulator_running; then
+        rm -f "${avd_dir}"/*.lock
+    fi
+
+    # Start the adb server first: the emulator injects the host's public key
+    # into the guest over adb as it boots, and if no server is listening that
+    # fails, leaving the device "unauthorized" for the whole boot with only an
+    # on-screen dialog to recover - useless to a scripted run.
+    adb start-server >/dev/null 2>&1 || true
 fi
 
 exec "$@"
