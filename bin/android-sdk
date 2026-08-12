@@ -55,7 +55,7 @@ if [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
     fi
 fi
 
-for var in ANDROID_SDK_SYNC ANDROID_PACKAGES_FILE; do
+for var in ANDROID_SDK_SYNC ANDROID_PACKAGES_FILE ANDROID_AVD_HOME ANDROID_ALLOW_IMAGE_CHANGE; do
     if [[ -n "${!var:-}" ]]; then
         docker_args+=(-e "${var}")
     fi

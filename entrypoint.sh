@@ -51,4 +51,41 @@ if [ ! -f "${HOME}/.android/adbkey" ] && command -v adb >/dev/null 2>&1; then
     adb keygen "${HOME}/.android/adbkey" >/dev/null 2>&1 || true
 fi
 
+# The emulator wipes an AVD's data partition, silently and without prompting,
+# when the installed system image's build differs from the one the AVD was
+# provisioned against. It records that build in the AVD's version_num.cache.
+# Refuse the launch instead; ANDROID_ALLOW_IMAGE_CHANGE=1 accepts the wipe.
+if [ "$1" = "emulator" ] && [ "${ANDROID_ALLOW_IMAGE_CHANGE:-0}" != "1" ]; then
+    avd=
+    prev=
+    for arg in "$@"; do
+        [ "${prev}" = "-avd" ] && avd="${arg}"
+        case "${arg}" in @?*) avd="${arg#@}" ;; esac
+        prev="${arg}"
+    done
+
+    avd_home="${ANDROID_AVD_HOME:-${HOME}/.android/avd}"
+    avd_dir="$(sed -n 's/^path=//p' "${avd_home}/${avd:-.}.ini" 2>/dev/null)"
+    provisioned="$(cat "${avd_dir}/version_num.cache" 2>/dev/null || true)"
+    sysdir="$(sed -n 's/^image.sysdir.1=//p' "${avd_dir}/config.ini" 2>/dev/null || true)"
+    installed_build="$(sed -n 's/^ro.build.version.incremental=//p' \
+        "${ANDROID_SDK_ROOT}/${sysdir}build.prop" 2>/dev/null || true)"
+
+    if [ -n "${provisioned}" ] && [ -n "${installed_build}" ] &&
+       [ "${provisioned}" != "${installed_build}" ]; then
+        cat >&2 <<MSG
+refusing to launch ${avd}: its system image has changed
+
+  provisioned against build ${provisioned}
+  installed system image is build ${installed_build}
+  (${ANDROID_SDK_ROOT}/${sysdir})
+
+Booting would wipe this AVD's data partition, without warning. Install the
+build it expects, point ANDROID_SDK_ROOT at an SDK that has it, or set
+ANDROID_ALLOW_IMAGE_CHANGE=1 to accept losing the data.
+MSG
+        exit 1
+    fi
+fi
+
 exec "$@"

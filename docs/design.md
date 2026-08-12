@@ -82,6 +82,32 @@ The wrapper does not `exec docker run` when it loaded the module: `exec`
 replaces the shell and takes the `EXIT` trap with it, which is the failure the
 trap exists to prevent.
 
+## System image changes wipe AVDs
+
+Changing the system image under an existing AVD destroys its data partition.
+The emulator does this silently — no prompt, and nothing in its log naming the
+wipe. It records the image's `ro.build.version.incremental` in the AVD's
+`version_num.cache` and compares on each boot.
+
+Measured with one AVD, changing one variable at a time:
+
+| Emulator | System image | Marker in `/data/local/tmp` | userdata |
+|----------|--------------|-----------------------------|----------|
+| 34.1.19  | r8           | written                     | 1471 MB  |
+| 37.1.11  | r8           | **survived**                | 1556 MB  |
+| 37.1.11  | r14          | **gone**                    | 913 MB   |
+
+Upgrading the emulator is safe; upgrading the system image is not. Since a
+system image installs to one fixed path per SDK root, every AVD under that
+root moves together when the package is upgraded — an SDK that converges to
+latest will eventually wipe any AVD it inherits.
+
+The entrypoint therefore refuses to launch an AVD whose `version_num.cache`
+does not match the installed image's build, naming both builds. Pin the image
+in `packages.txt` (`system-images;android-34;google_apis_playstore;x86_64@8`)
+to hold an existing AVD's build; `ANDROID_ALLOW_IMAGE_CHANGE=1` accepts the
+loss and proceeds.
+
 ## adb keys
 
 The emulator injects `$HOME/.android/adbkey.pub` into the guest as it boots, so
