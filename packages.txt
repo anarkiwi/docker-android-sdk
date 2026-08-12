@@ -1,6 +1,8 @@
 # Packages installed into $ANDROID_SDK_ROOT on first run, and whenever this
 # file changes. Unversioned entries take the current stable build; append
-# @<version> (for example emulator@37.1.11) to pin one.
+# @<version> (for example emulator@37.1.11) to pin one. Note that only the
+# current revision of a system image is published: an older one cannot be
+# pinned back to, and asking for it installs nothing.
 platform-tools
 emulator
 platforms;android-34
