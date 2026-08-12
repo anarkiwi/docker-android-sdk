@@ -40,6 +40,22 @@ if [ "${ANDROID_SDK_SYNC}" != "0" ]; then
         packages="$(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "${ANDROID_PACKAGES_FILE}")"
         # shellcheck disable=SC2086
         android --no-metrics --sdk "${ANDROID_SDK_ROOT}" sdk install ${packages}
+
+        # A package it cannot resolve - an unpublished system image revision,
+        # say - is reported as "Ignoring" and skipped, and the install still
+        # exits 0, having created the empty directory tree. Every installed
+        # package carries a source.properties, so check for that.
+        missing=
+        for package in ${packages}; do
+            path="$(printf '%s' "${package%@*}" | tr ';' '/')"
+            [ -f "${ANDROID_SDK_ROOT}/${path}/source.properties" ] ||
+                missing="${missing} ${package}"
+        done
+        if [ -n "${missing}" ]; then
+            echo "convergence incomplete, not installed:${missing}" >&2
+            exit 1
+        fi
+
         printf '%s\n' "${want}" >"${marker}"
     fi
 fi
