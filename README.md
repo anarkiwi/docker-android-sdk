@@ -36,6 +36,8 @@ docker build -t anarkiwi/android-sdk .
 | `ANDROID_SDK_SYNC` | `1` | `0` skips package convergence |
 | `ANDROID_PACKAGES_FILE` | `/etc/android-packages.txt` | Package list in the container |
 | `ANDROID_SDK_DOCKER_ARGS` | | Extra `docker run` arguments |
+| `ANDROID_ALLOW_IMAGE_CHANGE` | `0` | `1` boots an AVD whose system image changed, wiping its data |
+| `ANDROID_AVD_HOME` | `$HOME/.android/avd` | Where AVDs live |
 
 ## Docs
 
