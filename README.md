@@ -10,7 +10,7 @@ bin/android-sdk                             # list AVDs
 bin/android-sdk emulator -avd virtual7      # run an AVD
 bin/android-sdk adb devices
 bin/android-sdk avdmanager list target
-bin/android-sdk sdkmanager --list_installed
+bin/android-sdk android sdk list             # installed packages
 bin/wait-for-boot                           # block until a booting AVD is up
 ```
 

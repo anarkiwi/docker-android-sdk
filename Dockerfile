@@ -41,8 +41,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libfreetype6 \
         libgl1 \
         libglx-mesa0 \
+        libice6 \
         libnss3 \
         libpulse0 \
+        libsm6 \
         libvulkan1 \
         libx11-xcb1 \
         libxcb-cursor0 \
@@ -58,6 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxdamage1 \
         libxi6 \
         libxkbcommon-x11-0 \
+        libxkbfile1 \
         libxrandr2 \
         libxtst6 \
         mesa-va-drivers \

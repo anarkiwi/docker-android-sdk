@@ -13,9 +13,23 @@ entrypoint into the bind mounted SDK directory.
 - AVD state is large (tens to hundreds of GB of qcow2) and belongs on the host.
 - Upgrading the SDK is an edit to `packages.txt`, not an IDE session.
 
-`platform-tools` and `emulator` have no version selector in `sdkmanager`; it
-installs the current stable channel build. Pinning those exactly would mean
-fetching the zips directly, which is not worth the maintenance.
+## android, not sdkmanager
+
+Convergence runs `android sdk install`. `sdkmanager` still works but prints a
+deprecation banner on every invocation, cannot pin `emulator` or
+`platform-tools` to a version, and needs a separate `--licenses` pass. The
+`android` CLI takes the same `package;path` names, accepts `@<version>` on any
+of them, and installs licences as it goes. `--no-metrics` opts out of the
+usage reporting it does by default.
+
+The trade is that `android` is a stub which fetches its ~235MB implementation
+on first use. It caches under `$HOME/.android/cli`, so with `$HOME` bind
+mounted that is one download per user, not per run; the bundle cannot be baked
+into the image, as a seeded copy is re-fetched regardless of where it is
+placed.
+
+`avdmanager` stays for AVD creation: `android emulator create` only takes
+coarse profiles (phone, watch, XR) and cannot name a system image.
 
 ## cmdline-tools is mirrored, not installed
 
@@ -67,6 +81,14 @@ flags replace the `--privileged` that GUI container wrappers often use.
 The wrapper does not `exec docker run` when it loaded the module: `exec`
 replaces the shell and takes the `EXIT` trap with it, which is the failure the
 trap exists to prevent.
+
+## adb keys
+
+The emulator injects `$HOME/.android/adbkey.pub` into the guest as it boots, so
+a key generated later — by the first `adb` invocation, which is usually after
+the emulator has started — is one the guest has never seen, and the device
+stays `unauthorized` for that whole boot. The entrypoint generates the key
+before handing over, so a pristine `$HOME` behaves like an established one.
 
 ## XDG_RUNTIME_DIR
 
